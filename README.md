@@ -1,13 +1,13 @@
-# Flow Launcher LWin Plugin
+# ArcWinHotKey - Flow Launcher Win Hotkey Plugin
 
-This is a simple plugin designed to activate Flow Launcher using the `LWin` (Left Windows) button instead of the default `Alt` + `Space` hotkey.
+ArcWinHotKey lets you activate Flow Launcher using Windows key shortcuts, including the original `LWin` (Left Windows) button or the new `LWin + Space` combination, instead of the default `Alt + Space` hotkey.
 
 ## Installation
 
 1. Begin by installing the plugin.
 
    ```
-   pm install Win Hotkey
+   pm install ArcWinHotKey
    ```
 2. ~~Ensure that your Flow Launcher hotkey is set to `Alt + Space`.~~
 
@@ -15,7 +15,7 @@ This is a simple plugin designed to activate Flow Launcher using the `LWin` (Lef
 
 ## Usage
 
-- To trigger Flow Launcher, simply press the `LWin` button.
+- To trigger Flow Launcher, press the hotkey configured in the plugin settings (e.g., `LWin` or `LWin + Space`).
 - For Main Windows shortcuts like `Win + R` or `Win + D`:
 
   - Hold down the `LWin` button until the timeout exceeds `200 ms` by default (which can be changed in settings), then press the desired key combination.

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Controls;
@@ -152,6 +153,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
                     ahkFormat = "!";
                     break;
                 case "LWin":
+                case Settings.LWinSpaceModifier:
                     ahkFormat = "#";
                     break;
                 case "LControl":
@@ -165,61 +167,89 @@ namespace Flow.Launcher.Plugin.WinHotkey
         {
             if (!_context.CurrentPluginMetadata.Disabled)
             {
-                string Timeout = _settings.Timeout;
-                string Script = $@"#Persistent
-                return
-                {(_settings.DoubleTap ? "Interr_PriorKey := \"\"\"\" " : "")}
-                {(_settings.DoubleTap ? "First_Tap_Time := 0 " : "")}
-                ~{_settings.InterrModifier}::
-                    Send, {{Blind}}{{VKFF}}
-                    KeyboardStartTime := A_TickCount ; Record the start time
-                    KeyWait, {_settings.InterrModifier}
-                    
-                    ; Calculate the time elapsed
-                    ElapsedTime := A_TickCount - KeyboardStartTime
+                string timeout = _settings.Timeout;
+                bool useWinSpace = string.Equals(_settings.InterrModifier, Settings.LWinSpaceModifier, StringComparison.Ordinal);
+                string hotkeyBinding = useWinSpace ? "~*Space" : $"~{_settings.InterrModifier}";
+                string keyWaitTarget = useWinSpace ? "Space" : _settings.InterrModifier;
+                string priorKeyName = useWinSpace ? "Space" : _settings.InterrModifier;
 
-                    if (A_PriorKey != ""{_settings.InterrModifier}"")
-                    {{
-                        {(_settings.DoubleTap ? "Interr_PriorKey := A_PriorKey" : "")}
-                        Send, {ReleaseMappedButton()}
-                        return
-                    }}
-                    {(_settings.DoubleTap ? $@"
-                    if (Interr_PriorKey != ""{_settings.InterrModifier}"" || (A_TickCount - First_Tap_Time) > 500)
-                    {{
-                        First_Tap_Time := A_TickCount  ; Set First_Tap_Time to the current tick count
-                        Interr_PriorKey := A_PriorKey
-                        return
-                    }}
-                    " : "")}
-                    {(_settings.DoubleTap ? $@"
-                    if (Interr_PriorKey != ""{_settings.InterrModifier}"" || (A_TickCount - First_Tap_Time) > {_settings.DoubleTapTimeout})
-                    {{
-                        First_Tap_Time := A_TickCount  ; Set First_Tap_Time to the current tick count
-                        Interr_PriorKey := A_PriorKey
-                        return
-                    }}
-                    " : "")}
-                    if ({(_settings.DoubleTap ? $"Interr_PriorKey = \"{_settings.InterrModifier}\" && " : "")}ElapsedTime < {Timeout}) ; Time between press and release is less than 200 milliseconds
-                    {{
+                var scriptBuilder = new StringBuilder();
+                scriptBuilder.AppendLine("#Persistent");
+                scriptBuilder.AppendLine("return");
 
-                        ; Get the class of the currently active window
-                        WinGetClass, activeWindowClass, A
-                        if (activeWindowClass = ""Windows.UI.Core.CoreWindow"" || activeWindowClass = ""Shell_TrayWnd"")
-                        {{
-                            Send, {{Esc}}
-                        }}
-                        ; Simulate Alt+Space
-                        Send, {GetHotkeyInAhkFormat()}
-                        return
-                    }}
-                return
-                ";
+                if (_settings.DoubleTap)
+                {
+                    scriptBuilder.AppendLine("Interr_PriorKey := \"\"");
+                    scriptBuilder.AppendLine("First_Tap_Time := 0");
+                }
 
+                scriptBuilder.AppendLine($"{hotkeyBinding}::");
 
+                if (useWinSpace)
+                {
+                    scriptBuilder.AppendLine("    if (!GetKeyState(\"LWin\", \"P\"))");
+                    scriptBuilder.AppendLine("    {");
+                    scriptBuilder.AppendLine("        return");
+                    scriptBuilder.AppendLine("    }");
+                }
 
+                scriptBuilder.AppendLine("    Send, {Blind}{VKFF}");
+                scriptBuilder.AppendLine("    KeyboardStartTime := A_TickCount ; Record the start time");
+                scriptBuilder.AppendLine($"    KeyWait, {keyWaitTarget}");
+                scriptBuilder.AppendLine();
+                scriptBuilder.AppendLine("    ; Calculate the time elapsed");
+                scriptBuilder.AppendLine("    ElapsedTime := A_TickCount - KeyboardStartTime");
+                scriptBuilder.AppendLine();
+                scriptBuilder.AppendLine($"    if (A_PriorKey != \"{priorKeyName}\")");
+                scriptBuilder.AppendLine("    {");
 
-                _ahk.ExecRaw(Script);
+                if (_settings.DoubleTap)
+                {
+                    scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
+                }
+
+                if (!useWinSpace)
+                {
+                    scriptBuilder.AppendLine($"        Send, {ReleaseMappedButton()}");
+                }
+
+                scriptBuilder.AppendLine("        return");
+                scriptBuilder.AppendLine("    }");
+
+                if (_settings.DoubleTap)
+                {
+                    scriptBuilder.AppendLine($"    if (Interr_PriorKey != \"{priorKeyName}\" || (A_TickCount - First_Tap_Time) > 500)");
+                    scriptBuilder.AppendLine("    {");
+                    scriptBuilder.AppendLine("        First_Tap_Time := A_TickCount  ; Set First_Tap_Time to the current tick count");
+                    scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
+                    scriptBuilder.AppendLine("        return");
+                    scriptBuilder.AppendLine("    }");
+                    scriptBuilder.AppendLine($"    if (Interr_PriorKey != \"{priorKeyName}\" || (A_TickCount - First_Tap_Time) > {_settings.DoubleTapTimeout})");
+                    scriptBuilder.AppendLine("    {");
+                    scriptBuilder.AppendLine("        First_Tap_Time := A_TickCount  ; Set First_Tap_Time to the current tick count");
+                    scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
+                    scriptBuilder.AppendLine("        return");
+                    scriptBuilder.AppendLine("    }");
+                }
+
+                string doubleTapCondition = _settings.DoubleTap ? $"Interr_PriorKey = \"{priorKeyName}\" && " : string.Empty;
+                scriptBuilder.AppendLine($"    if ({doubleTapCondition}ElapsedTime < {timeout}) ; Time between press and release is less than 200 milliseconds");
+                scriptBuilder.AppendLine("    {");
+                scriptBuilder.AppendLine("        ; Get the class of the currently active window");
+                scriptBuilder.AppendLine("        WinGetClass, activeWindowClass, A");
+                scriptBuilder.AppendLine("        if (activeWindowClass = \"Windows.UI.Core.CoreWindow\" || activeWindowClass = \"Shell_TrayWnd\")");
+                scriptBuilder.AppendLine("        {");
+                scriptBuilder.AppendLine("            Send, {Esc}");
+                scriptBuilder.AppendLine("        }");
+                scriptBuilder.AppendLine("        ; Simulate Alt+Space");
+                scriptBuilder.AppendLine($"        Send, {GetHotkeyInAhkFormat()}");
+                scriptBuilder.AppendLine("        return");
+                scriptBuilder.AppendLine("    }");
+                scriptBuilder.AppendLine("return");
+
+                string script = scriptBuilder.ToString();
+
+                _ahk.ExecRaw(script);
             }
         }
 
@@ -253,9 +283,10 @@ namespace Flow.Launcher.Plugin.WinHotkey
     
     public class Settings
     {
+        public const string LWinSpaceModifier = "LWin + Space";
         private string _timeout = "200";
         public string _doubleTapTimeout = "500";
-        public string DoubleTapTimeout 
+        public string DoubleTapTimeout
         {
             
             get
@@ -279,7 +310,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
         public string InterrModifier {get; set;} = "LWin";
 
         [JsonIgnore]
-        public List<string> Modifiers {get; } = new List<string> {"LWin", "LControl", "LAlt"};
+        public List<string> Modifiers {get; } = new List<string> {"LWin", LWinSpaceModifier, "LControl", "LAlt"};
         public string Timeout
         {
             get

@@ -1,12 +1,12 @@
 {
-    "ID": "7D530704C68E4838896BBA5C4C1DE7DF",
+    "ID": "6E2E78B04FD340E597BCA1B9FB030D90",
     "ActionKeyword": "*",
-    "Name": "Win Hotkey",
-    "Description": "Trigger Flow Launcher by Win Key",
+    "Name": "ArcWinHotKey",
+    "Description": "Trigger Flow Launcher with Windows key shortcuts",
     "Author": "Amin Salah",
-    "Version": "4.0.0",
+    "Version": "4.1.0",
     "Language": "csharp",
     "Website": "https://github.com/AminSallah/Flow.Launcher.Plugin.WinHotkey",
     "IcoPath": "app.png",
-    "ExecuteFileName": "Flow.Launcher.Plugin.WinHotkey.dll"
+    "ExecuteFileName": "ArcWinHotKey.dll"
 }

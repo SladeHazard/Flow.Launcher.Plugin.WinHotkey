@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net7.0-windows</TargetFramework>
-    <AssemblyName>Flow.Launcher.Plugin.WinHotkey</AssemblyName>
-    <PackageId>Flow.Launcher.Plugin.WinHotkey</PackageId>
+    <AssemblyName>ArcWinHotKey</AssemblyName>
+    <PackageId>ArcWinHotKey</PackageId>
     <Authors>Amin</Authors>
     <PackageProjectUrl>https://github.com/Amin/Flow.Launcher.Plugin.WinHotkey</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Amin/Flow.Launcher.Plugin.WinHotkey</RepositoryUrl>
