@@ -180,6 +180,11 @@ namespace Flow.Launcher.Plugin.WinHotkey
                     return false;
             }
         }
+        private static int ParseIntOrDefault(string value, int fallback)
+        {
+            return int.TryParse(value, out var parsed) ? parsed : fallback;
+        }
+
         public void Hook()
         {
             if (!_context.CurrentPluginMetadata.Disabled)
@@ -189,6 +194,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
                 string hotkeyBinding = useSpaceChord ? "~*Space" : $"~{_settings.InterrModifier}";
                 string keyWaitTarget = useSpaceChord ? "Space" : _settings.InterrModifier;
                 string priorKeyName = useSpaceChord ? chordModifierKey : _settings.InterrModifier;
+                int doubleTapWindow = ParseIntOrDefault(_settings.DoubleTapTimeout, 500);
 
                 var scriptBuilder = new StringBuilder();
                 scriptBuilder.AppendLine("#Persistent");
@@ -235,13 +241,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
 
                 if (_settings.DoubleTap)
                 {
-                    scriptBuilder.AppendLine($"    if (Interr_PriorKey != \"{priorKeyName}\" || (A_TickCount - First_Tap_Time) > 500)");
-                    scriptBuilder.AppendLine("    {");
-                    scriptBuilder.AppendLine("        First_Tap_Time := A_TickCount  ; Set First_Tap_Time to the current tick count");
-                    scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
-                    scriptBuilder.AppendLine("        return");
-                    scriptBuilder.AppendLine("    }");
-                    scriptBuilder.AppendLine($"    if (Interr_PriorKey != \"{priorKeyName}\" || (A_TickCount - First_Tap_Time) > {_settings.DoubleTapTimeout})");
+                    scriptBuilder.AppendLine($"    if (Interr_PriorKey != \"{priorKeyName}\" || (A_TickCount - First_Tap_Time) > {doubleTapWindow})");
                     scriptBuilder.AppendLine("    {");
                     scriptBuilder.AppendLine("        First_Tap_Time := A_TickCount  ; Set First_Tap_Time to the current tick count");
                     scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
@@ -297,49 +297,43 @@ namespace Flow.Launcher.Plugin.WinHotkey
         }
     }
 
-    
-        public class Settings
-        {
-            public const string LWinSpaceModifier = "LWin + Space";
-            public const string LCtrlSpaceModifier = "LControl + Space";
-            private string _timeout = "200";
-            public string _doubleTapTimeout = "500";
+    public class Settings
+    {
+        public const string LWinSpaceModifier = "LWin + Space";
+        public const string LCtrlSpaceModifier = "LControl + Space";
+
+        private const int MinimumDoubleTapTimeout = 200;
+
+        private string _timeout = "200";
+        private string _doubleTapTimeout = "500";
+
         public string DoubleTapTimeout
         {
-            
-            get
-            {
-                return _doubleTapTimeout;
-            }
+            get => _doubleTapTimeout;
             set
             {
-                if (Convert.ToInt32(value) < 200)
-                {
-                    _doubleTapTimeout = "200";
-                }
-                else
+                if (int.TryParse(value, out var parsed) && parsed >= MinimumDoubleTapTimeout)
                 {
                     _doubleTapTimeout = value;
                 }
+                else
+                {
+                    _doubleTapTimeout = MinimumDoubleTapTimeout.ToString();
+                }
             }
-
         }
-        public bool DoubleTap {get; set;} = false;
-        public string InterrModifier {get; set;} = "LWin";
+
+        public bool DoubleTap { get; set; } = false;
+
+        public string InterrModifier { get; set; } = "LWin";
 
         [JsonIgnore]
-        public List<string> Modifiers {get; } = new List<string> {"LWin", LWinSpaceModifier, "LControl", LCtrlSpaceModifier, "LAlt"};
+        public List<string> Modifiers { get; } = new() { "LWin", LWinSpaceModifier, "LControl", LCtrlSpaceModifier, "LAlt" };
+
         public string Timeout
         {
-            get
-            {
-                return _timeout;
-            }
-            set
-            {
-                _timeout = value;
-            }
-
+            get => _timeout;
+            set => _timeout = value;
         }
     }
 }
