@@ -193,8 +193,9 @@ namespace Flow.Launcher.Plugin.WinHotkey
                 bool useSpaceChord = TryGetSpaceChordModifier(_settings.InterrModifier, out string chordModifierKey);
                 string hotkeyBinding = useSpaceChord ? "~*Space" : $"~{_settings.InterrModifier}";
                 string keyWaitTarget = useSpaceChord ? "Space" : _settings.InterrModifier;
-                string priorKeyName = useSpaceChord ? chordModifierKey : _settings.InterrModifier;
+                string priorKeyName = useSpaceChord ? $"{chordModifierKey}_Space" : _settings.InterrModifier;
                 int doubleTapWindow = ParseIntOrDefault(_settings.DoubleTapTimeout, 500);
+                string doubleTapAssignment = useSpaceChord ? $"\"{priorKeyName}\"" : "A_PriorKey";
 
                 var scriptBuilder = new StringBuilder();
                 scriptBuilder.AppendLine("#Persistent");
@@ -223,28 +224,31 @@ namespace Flow.Launcher.Plugin.WinHotkey
                 scriptBuilder.AppendLine("    ; Calculate the time elapsed");
                 scriptBuilder.AppendLine("    ElapsedTime := A_TickCount - KeyboardStartTime");
                 scriptBuilder.AppendLine();
-                scriptBuilder.AppendLine($"    if (A_PriorKey != \"{priorKeyName}\")");
-                scriptBuilder.AppendLine("    {");
-
-                if (_settings.DoubleTap)
-                {
-                    scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
-                }
-
                 if (!useSpaceChord)
                 {
-                    scriptBuilder.AppendLine($"        Send, {ReleaseMappedButton()}");
-                }
+                    scriptBuilder.AppendLine($"    if (A_PriorKey != \"{_settings.InterrModifier}\")");
+                    scriptBuilder.AppendLine("    {");
 
-                scriptBuilder.AppendLine("        return");
-                scriptBuilder.AppendLine("    }");
+                    if (_settings.DoubleTap)
+                    {
+                        scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
+                    }
+
+                    scriptBuilder.AppendLine($"        Send, {ReleaseMappedButton()}");
+                    scriptBuilder.AppendLine("        return");
+                    scriptBuilder.AppendLine("    }");
+                }
+                else if (_settings.DoubleTap)
+                {
+                    scriptBuilder.AppendLine($"    Interr_PriorKey := \"{priorKeyName}\"");
+                }
 
                 if (_settings.DoubleTap)
                 {
                     scriptBuilder.AppendLine($"    if (Interr_PriorKey != \"{priorKeyName}\" || (A_TickCount - First_Tap_Time) > {doubleTapWindow})");
                     scriptBuilder.AppendLine("    {");
                     scriptBuilder.AppendLine("        First_Tap_Time := A_TickCount  ; Set First_Tap_Time to the current tick count");
-                    scriptBuilder.AppendLine("        Interr_PriorKey := A_PriorKey");
+                    scriptBuilder.AppendLine($"        Interr_PriorKey := {doubleTapAssignment}");
                     scriptBuilder.AppendLine("        return");
                     scriptBuilder.AppendLine("    }");
                 }
