@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Flow.Launcher.Plugin.WinHotkey
 {
@@ -12,6 +13,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
         private const int WmKeyUp = 0x0101;
         private const int WmSysKeyDown = 0x0104;
         private const int WmSysKeyUp = 0x0105;
+        private const uint WmQuit = 0x0012;
         private const uint LlkhfInjected = 0x00000010;
 
         private const uint VkSpace = 0x20;
@@ -22,8 +24,12 @@ namespace Flow.Launcher.Plugin.WinHotkey
         private readonly Settings _settings;
         private readonly Action _trigger;
         private readonly LowLevelKeyboardProc _callback;
+        private readonly ManualResetEventSlim _hookStarted = new(false);
 
         private IntPtr _hookHandle;
+        private Thread _hookThread;
+        private Exception _startupException;
+        private uint _hookThreadId;
         private bool _configuredModifierDown;
         private bool _spaceChordActive;
         private bool _triggerKeyDown;
@@ -40,19 +46,65 @@ namespace Flow.Launcher.Plugin.WinHotkey
 
         public void Start()
         {
-            if (_hookHandle != IntPtr.Zero)
+            if (_hookThread != null)
             {
                 return;
             }
 
-            using var process = Process.GetCurrentProcess();
-            using var module = process.MainModule;
-            var moduleHandle = GetModuleHandle(module?.ModuleName);
-            _hookHandle = SetWindowsHookEx(WhKeyboardLl, _callback, moduleHandle, 0);
-
-            if (_hookHandle == IntPtr.Zero)
+            _hookThread = new Thread(RunHookMessageLoop)
             {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to install the keyboard hook.");
+                IsBackground = true,
+                Name = "ArcWinHotKey keyboard hook"
+            };
+            _hookThread.Start();
+            _hookStarted.Wait();
+
+            if (_startupException != null)
+            {
+                _hookThread = null;
+                throw new InvalidOperationException("Unable to start the keyboard hook.", _startupException);
+            }
+        }
+
+        private void RunHookMessageLoop()
+        {
+            try
+            {
+                _hookThreadId = GetCurrentThreadId();
+
+                // Force Windows to create this thread's message queue before
+                // Start returns and Dispose is allowed to post WM_QUIT.
+                PeekMessage(out _, IntPtr.Zero, 0, 0, 0);
+
+                using var process = Process.GetCurrentProcess();
+                using var module = process.MainModule;
+                var moduleHandle = GetModuleHandle(module?.ModuleName);
+                _hookHandle = SetWindowsHookEx(WhKeyboardLl, _callback, moduleHandle, 0);
+                if (_hookHandle == IntPtr.Zero)
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to install the keyboard hook.");
+                }
+
+                _hookStarted.Set();
+
+                while (GetMessage(out var message, IntPtr.Zero, 0, 0) > 0)
+                {
+                    TranslateMessage(ref message);
+                    DispatchMessage(ref message);
+                }
+            }
+            catch (Exception exception)
+            {
+                _startupException = exception;
+                _hookStarted.Set();
+            }
+            finally
+            {
+                if (_hookHandle != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(_hookHandle);
+                    _hookHandle = IntPtr.Zero;
+                }
             }
         }
 
@@ -196,13 +248,16 @@ namespace Flow.Launcher.Plugin.WinHotkey
 
         public void Dispose()
         {
-            if (_hookHandle == IntPtr.Zero)
+            var hookThread = _hookThread;
+            if (hookThread == null)
             {
                 return;
             }
 
-            UnhookWindowsHookEx(_hookHandle);
-            _hookHandle = IntPtr.Zero;
+            PostThreadMessage(_hookThreadId, WmQuit, UIntPtr.Zero, IntPtr.Zero);
+            hookThread.Join();
+            _hookThread = null;
+            _hookStarted.Dispose();
         }
 
         private delegate IntPtr LowLevelKeyboardProc(int code, IntPtr message, IntPtr data);
@@ -215,6 +270,19 @@ namespace Flow.Launcher.Plugin.WinHotkey
             public uint Flags;
             public uint Time;
             public UIntPtr ExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Message
+        {
+            public IntPtr Window;
+            public uint Id;
+            public UIntPtr WParam;
+            public IntPtr LParam;
+            public uint Time;
+            public int PointX;
+            public int PointY;
+            public uint Private;
         }
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -235,7 +303,41 @@ namespace Flow.Launcher.Plugin.WinHotkey
             IntPtr message,
             IntPtr data);
 
+        [DllImport("user32.dll")]
+        private static extern int GetMessage(
+            out Message message,
+            IntPtr window,
+            uint minimumMessage,
+            uint maximumMessage);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool PeekMessage(
+            out Message message,
+            IntPtr window,
+            uint minimumMessage,
+            uint maximumMessage,
+            uint removeMessage);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool TranslateMessage(ref Message message);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr DispatchMessage(ref Message message);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool PostThreadMessage(
+            uint threadId,
+            uint message,
+            UIntPtr wParam,
+            IntPtr lParam);
+
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string moduleName);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
     }
 }
