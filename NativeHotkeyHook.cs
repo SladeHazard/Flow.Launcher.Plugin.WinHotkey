@@ -80,13 +80,33 @@ namespace Flow.Launcher.Plugin.WinHotkey
             var modifierKey = GetConfiguredModifierKey();
             var triggerKey = IsSpaceChord ? VkSpace : modifierKey;
 
-            if (isKeyDown && virtualKey == triggerKey)
+            // A chord is complete as soon as Space goes down while its modifier
+            // is physically held. Waiting for Space to be released made the
+            // chord depend on the short-press timeout and caused normal key
+            // holds to be silently ignored.
+            if (IsSpaceChord)
             {
-                if (IsSpaceChord && !IsKeyDown(modifierKey))
+                if (isKeyDown && virtualKey == triggerKey && IsKeyDown(modifierKey))
                 {
+                    if (!_triggerKeyDown)
+                    {
+                        _triggerKeyDown = true;
+                        RegisterTap();
+                    }
+
                     return;
                 }
 
+                if (isKeyUp && virtualKey == triggerKey)
+                {
+                    _triggerKeyDown = false;
+                }
+
+                return;
+            }
+
+            if (isKeyDown && virtualKey == triggerKey)
+            {
                 if (!_triggerKeyDown)
                 {
                     _triggerKeyDown = true;
@@ -105,10 +125,9 @@ namespace Flow.Launcher.Plugin.WinHotkey
             if (isKeyUp && virtualKey == triggerKey && _triggerKeyDown)
             {
                 var elapsed = Environment.TickCount64 - _pressStartedAt;
-                var modifierStillDown = !IsSpaceChord || IsKeyDown(modifierKey);
                 _triggerKeyDown = false;
 
-                if (!_tapInterrupted && modifierStillDown && elapsed < _settings.PressTimeoutMilliseconds)
+                if (!_tapInterrupted && elapsed < _settings.PressTimeoutMilliseconds)
                 {
                     RegisterTap();
                 }
