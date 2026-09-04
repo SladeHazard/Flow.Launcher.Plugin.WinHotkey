@@ -31,7 +31,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AutoHotkey.Interop" Version="1.0.0.1" />
     <PackageReference Include="Flow.Launcher.Plugin" Version="4.1.0" />
   </ItemGroup>
 

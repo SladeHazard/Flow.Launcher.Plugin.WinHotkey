@@ -13,7 +13,7 @@ Because ArcWinHotKey is not published to the Flow Launcher package repository, y
    dotnet build -c Release
    ```
 
-   This creates the plugin binaries under `bin/Release/net7.0-windows/`.
+   This creates the plugin binaries under `bin/Release/`.
 3. Copy the entire contents of that folder into Flow Launcher’s plugin directory, e.g. `%LOCALAPPDATA%\FlowLauncher\Plugins\ArcWinHotKey`.
 4. Restart Flow Launcher so it can load the newly copied plugin.
 
