@@ -61,48 +61,53 @@ namespace Flow.Launcher.Plugin.WinHotkey
                 var keyboardData = Marshal.PtrToStructure<KbdLlHookStruct>(data);
                 if ((keyboardData.Flags & LlkhfInjected) == 0)
                 {
-                    ProcessKey(keyboardData.VirtualKeyCode, message);
+                    if (ProcessKey(keyboardData.VirtualKeyCode, message))
+                    {
+                        return (IntPtr)1;
+                    }
                 }
             }
 
             return CallNextHookEx(_hookHandle, code, message, data);
         }
 
-        private void ProcessKey(uint virtualKey, IntPtr message)
+        private bool ProcessKey(uint virtualKey, IntPtr message)
         {
             var isKeyDown = message == (IntPtr)WmKeyDown || message == (IntPtr)WmSysKeyDown;
             var isKeyUp = message == (IntPtr)WmKeyUp || message == (IntPtr)WmSysKeyUp;
             if (!isKeyDown && !isKeyUp)
             {
-                return;
+                return false;
             }
 
             var modifierKey = GetConfiguredModifierKey();
             var triggerKey = IsSpaceChord ? VkSpace : modifierKey;
 
-            // A chord is complete as soon as Space goes down while its modifier
-            // is physically held. Waiting for Space to be released made the
-            // chord depend on the short-press timeout and caused normal key
-            // holds to be silently ignored.
+            // Consume Space while the configured modifier is held. Otherwise
+            // Windows handles Win+Space first (normally changing the keyboard
+            // layout) and can immediately take focus back from Flow Launcher.
+            // Complete the chord when the modifier is released, after Windows
+            // has finished handling its key sequence.
             if (IsSpaceChord)
             {
                 if (isKeyDown && virtualKey == triggerKey && IsKeyDown(modifierKey))
                 {
-                    if (!_triggerKeyDown)
-                    {
-                        _triggerKeyDown = true;
-                        RegisterTap();
-                    }
-
-                    return;
+                    _triggerKeyDown = true;
+                    return true;
                 }
 
-                if (isKeyUp && virtualKey == triggerKey)
+                if (virtualKey == triggerKey && _triggerKeyDown)
+                {
+                    return true;
+                }
+
+                if (isKeyUp && virtualKey == modifierKey && _triggerKeyDown)
                 {
                     _triggerKeyDown = false;
+                    RegisterTap();
                 }
 
-                return;
+                return false;
             }
 
             if (isKeyDown && virtualKey == triggerKey)
@@ -114,7 +119,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
                     _pressStartedAt = Environment.TickCount64;
                 }
 
-                return;
+                return false;
             }
 
             if (isKeyDown && _triggerKeyDown && virtualKey != modifierKey)
@@ -132,6 +137,8 @@ namespace Flow.Launcher.Plugin.WinHotkey
                     RegisterTap();
                 }
             }
+
+            return false;
         }
 
         private void RegisterTap()

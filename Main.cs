@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace Flow.Launcher.Plugin.WinHotkey
 {
@@ -28,7 +29,9 @@ namespace Flow.Launcher.Plugin.WinHotkey
         {
             // The low-level hook callback must return quickly. Move UI work back to
             // Flow Launcher's dispatcher rather than invoking the API on the hook.
-            Application.Current.Dispatcher.BeginInvoke(new Action(() => _context.API.ShowMainWindow()));
+            Application.Current.Dispatcher.BeginInvoke(
+                new Action(() => _context.API.ShowMainWindow()),
+                DispatcherPriority.ApplicationIdle);
         }
 
         public List<Result> Query(Query query)
