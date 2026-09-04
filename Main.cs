@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +14,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
         private PluginInitContext _context;
         private Settings _settings;
         private NativeHotkeyHook _hotkeyHook;
+        private NativeHotkeySender _hotkeySender;
 
         public void Init(PluginInitContext context)
         {
@@ -20,18 +23,30 @@ namespace Flow.Launcher.Plugin.WinHotkey
 
             if (!_context.CurrentPluginMetadata.Disabled)
             {
-                _hotkeyHook = new NativeHotkeyHook(_settings, ShowFlowLauncher);
+                _hotkeySender = new NativeHotkeySender(GetFlowLauncherHotkey());
+                _hotkeyHook = new NativeHotkeyHook(_settings, SendFlowLauncherHotkey);
                 _hotkeyHook.Start();
             }
         }
 
-        private void ShowFlowLauncher()
+        private string GetFlowLauncherHotkey()
         {
-            // The low-level hook callback must return quickly. Move UI work back to
-            // Flow Launcher's dispatcher rather than invoking the API on the hook.
+            var flowDirectory = Path.GetDirectoryName(
+                Path.GetDirectoryName(_context.CurrentPluginMetadata.PluginDirectory));
+            var settingsPath = Path.Combine(flowDirectory, "Settings", "Settings.json");
+
+            using var settings = JsonDocument.Parse(File.ReadAllText(settingsPath));
+            return settings.RootElement.GetProperty("Hotkey").GetString()
+                ?? throw new InvalidDataException("Flow Launcher's hotkey is not configured.");
+        }
+
+        private void SendFlowLauncherHotkey()
+        {
+            // Queue the synthetic shortcut until the physical modifier release has
+            // left the hook. This prevents LWin from being added to Flow's shortcut.
             Application.Current.Dispatcher.BeginInvoke(
-                new Action(() => _context.API.ShowMainWindow()),
-                DispatcherPriority.ApplicationIdle);
+                new Action(_hotkeySender.Send),
+                DispatcherPriority.Normal);
         }
 
         public List<Result> Query(Query query)
@@ -48,6 +63,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
         {
             _hotkeyHook?.Dispose();
             _hotkeyHook = null;
+            _hotkeySender = null;
         }
     }
 
