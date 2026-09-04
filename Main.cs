@@ -24,7 +24,10 @@ namespace Flow.Launcher.Plugin.WinHotkey
             if (!_context.CurrentPluginMetadata.Disabled)
             {
                 _hotkeySender = new NativeHotkeySender(GetFlowLauncherHotkey());
-                _hotkeyHook = new NativeHotkeyHook(_settings, SendFlowLauncherHotkey);
+                _hotkeyHook = new NativeHotkeyHook(
+                    _settings,
+                    SendFlowLauncherHotkey,
+                    _hotkeySender.MaskWindowsStartMenu);
                 _hotkeyHook.Start();
             }
         }

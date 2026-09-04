@@ -11,6 +11,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
     {
         private const uint InputKeyboard = 1;
         private const uint KeyEventKeyUp = 0x0002;
+        private const ushort VkPacketMask = 0xFF;
 
         private readonly ushort[] _virtualKeys;
 
@@ -41,11 +42,28 @@ namespace Flow.Launcher.Plugin.WinHotkey
                 inputs.Add(CreateKeyboardInput(_virtualKeys[index], KeyEventKeyUp));
             }
 
-            var inputArray = inputs.ToArray();
-            var sent = SendInput((uint)inputArray.Length, inputArray, Marshal.SizeOf<Input>());
-            if (sent != (uint)inputArray.Length)
+            Send(inputs.ToArray(), "Unable to send Flow Launcher's configured hotkey.");
+        }
+
+        public void MaskWindowsStartMenu()
+        {
+            // This is the VK_FF masking sequence used by the former AHK script.
+            // It prevents Windows from treating LWin as a standalone Start press.
+            Send(
+                new[]
+                {
+                    CreateKeyboardInput(VkPacketMask, 0),
+                    CreateKeyboardInput(VkPacketMask, KeyEventKeyUp)
+                },
+                "Unable to mask the Windows Start-menu key sequence.");
+        }
+
+        private static void Send(Input[] inputs, string errorMessage)
+        {
+            var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
+            if (sent != (uint)inputs.Length)
             {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to send Flow Launcher's configured hotkey.");
+                throw new Win32Exception(Marshal.GetLastWin32Error(), errorMessage);
             }
         }
 
@@ -99,6 +117,12 @@ namespace Flow.Launcher.Plugin.WinHotkey
         {
             [FieldOffset(0)]
             public KeyboardInput Keyboard;
+
+            // MOUSEINPUT is the largest INPUT union member. Without it the
+            // marshalled INPUT size is 32 bytes on x64 instead of the required
+            // 40 bytes, and SendInput fails with ERROR_INVALID_PARAMETER (87).
+            [FieldOffset(0)]
+            public MouseInput Mouse;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -106,6 +130,17 @@ namespace Flow.Launcher.Plugin.WinHotkey
         {
             public ushort VirtualKey;
             public ushort ScanCode;
+            public uint Flags;
+            public uint Time;
+            public UIntPtr ExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MouseInput
+        {
+            public int X;
+            public int Y;
+            public uint MouseData;
             public uint Flags;
             public uint Time;
             public UIntPtr ExtraInfo;

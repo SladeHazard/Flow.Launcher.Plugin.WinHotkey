@@ -23,6 +23,7 @@ namespace Flow.Launcher.Plugin.WinHotkey
 
         private readonly Settings _settings;
         private readonly Action _trigger;
+        private readonly Action _maskWindowsStartMenu;
         private readonly LowLevelKeyboardProc _callback;
         private readonly ManualResetEventSlim _hookStarted = new(false);
 
@@ -37,10 +38,11 @@ namespace Flow.Launcher.Plugin.WinHotkey
         private long _pressStartedAt;
         private long _lastTapAt;
 
-        public NativeHotkeyHook(Settings settings, Action trigger)
+        public NativeHotkeyHook(Settings settings, Action trigger, Action maskWindowsStartMenu)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _trigger = trigger ?? throw new ArgumentNullException(nameof(trigger));
+            _maskWindowsStartMenu = maskWindowsStartMenu ?? throw new ArgumentNullException(nameof(maskWindowsStartMenu));
             _callback = HookCallback;
         }
 
@@ -168,6 +170,11 @@ namespace Flow.Launcher.Plugin.WinHotkey
 
                 if (isKeyDown && virtualKey == triggerKey && _configuredModifierDown)
                 {
+                    if (!_spaceChordActive && modifierKey == VkLwin)
+                    {
+                        _maskWindowsStartMenu();
+                    }
+
                     _spaceChordActive = true;
                     return true;
                 }
