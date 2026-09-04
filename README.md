@@ -1,21 +1,31 @@
-# Flow Launcher LWin Plugin
+# ArcWinHotKey - Flow Launcher Win Hotkey Plugin
 
-This is a simple plugin designed to activate Flow Launcher using the `LWin` (Left Windows) button instead of the default `Alt` + `Space` hotkey.
+ArcWinHotKey lets you activate Flow Launcher using Windows key shortcuts, including the original `LWin` (Left Windows) button or the new `LWin + Space` combination, instead of the default `Alt + Space` hotkey.
+
+The plugin uses the native Windows low-level keyboard hook API. It does not
+include AutoHotkey, execute AutoHotkey scripts, or simulate Flow Launcher's
+configured hotkey.
 
 ## Installation
 
-1. Begin by installing the plugin.
+Because ArcWinHotKey is not published to the Flow Launcher package repository, you need to install it manually:
+
+1. Clone or download this repository.
+2. Build the plugin with the .NET SDK:
 
    ```
-   pm install Win Hotkey
+   dotnet build -c Release
    ```
-2. ~~Ensure that your Flow Launcher hotkey is set to `Alt + Space`.~~
+
+   This creates the plugin binaries under `bin/Release/`.
+3. Copy the entire contents of that folder into Flow Launcher’s plugin directory, e.g. `%LOCALAPPDATA%\FlowLauncher\Plugins\ArcWinHotKey`.
+4. Restart Flow Launcher so it can load the newly copied plugin.
 
    ![Flow Launcher Settings](Flowlaunchersettings.png)
 
 ## Usage
 
-- To trigger Flow Launcher, simply press the `LWin` button.
+- To trigger Flow Launcher, press the hotkey configured in the plugin settings (e.g., `LWin`, `LWin + Space`, or `LCtrl + Space`). Space chords activate as soon as Space is pressed and are not limited by the single-modifier press timeout.
 - For Main Windows shortcuts like `Win + R` or `Win + D`:
 
   - Hold down the `LWin` button until the timeout exceeds `200 ms` by default (which can be changed in settings), then press the desired key combination.
