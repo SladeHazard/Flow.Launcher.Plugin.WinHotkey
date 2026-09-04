@@ -2,10 +2,6 @@
 
 ArcWinHotKey lets you activate Flow Launcher using Windows key shortcuts, including the original `LWin` (Left Windows) button or the new `LWin + Space` combination, instead of the default `Alt + Space` hotkey.
 
-The plugin uses the native Windows low-level keyboard hook API. It does not
-include AutoHotkey, execute AutoHotkey scripts, or simulate Flow Launcher's
-configured hotkey.
-
 ## Installation
 
 Because ArcWinHotKey is not published to the Flow Launcher package repository, you need to install it manually:
@@ -25,7 +21,7 @@ Because ArcWinHotKey is not published to the Flow Launcher package repository, y
 
 ## Usage
 
-- To trigger Flow Launcher, press the hotkey configured in the plugin settings (e.g., `LWin`, `LWin + Space`, or `LCtrl + Space`). Space chords activate as soon as Space is pressed and are not limited by the single-modifier press timeout.
+- To trigger Flow Launcher, press the hotkey configured in the plugin settings (e.g., `LWin`, `LWin + Space`, or `LCtrl + Space`).
 - For Main Windows shortcuts like `Win + R` or `Win + D`:
 
   - Hold down the `LWin` button until the timeout exceeds `200 ms` by default (which can be changed in settings), then press the desired key combination.
