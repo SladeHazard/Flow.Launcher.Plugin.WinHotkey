@@ -24,6 +24,8 @@ namespace Flow.Launcher.Plugin.WinHotkey
         private readonly LowLevelKeyboardProc _callback;
 
         private IntPtr _hookHandle;
+        private bool _configuredModifierDown;
+        private bool _spaceChordActive;
         private bool _triggerKeyDown;
         private bool _tapInterrupted;
         private long _pressStartedAt;
@@ -90,21 +92,37 @@ namespace Flow.Launcher.Plugin.WinHotkey
             // has finished handling its key sequence.
             if (IsSpaceChord)
             {
-                if (isKeyDown && virtualKey == triggerKey && IsKeyDown(modifierKey))
+                // Track the modifier from the hook events themselves. Querying
+                // GetAsyncKeyState from inside a low-level hook is racy because
+                // Windows updates its asynchronous state after the callback.
+                if (virtualKey == modifierKey)
                 {
-                    _triggerKeyDown = true;
+                    if (isKeyDown)
+                    {
+                        _configuredModifierDown = true;
+                    }
+                    else
+                    {
+                        _configuredModifierDown = false;
+                        if (_spaceChordActive)
+                        {
+                            _spaceChordActive = false;
+                            RegisterTap();
+                        }
+                    }
+
+                    return false;
+                }
+
+                if (isKeyDown && virtualKey == triggerKey && _configuredModifierDown)
+                {
+                    _spaceChordActive = true;
                     return true;
                 }
 
-                if (virtualKey == triggerKey && _triggerKeyDown)
+                if (virtualKey == triggerKey && _spaceChordActive)
                 {
                     return true;
-                }
-
-                if (isKeyUp && virtualKey == modifierKey && _triggerKeyDown)
-                {
-                    _triggerKeyDown = false;
-                    RegisterTap();
                 }
 
                 return false;
@@ -176,11 +194,6 @@ namespace Flow.Launcher.Plugin.WinHotkey
             };
         }
 
-        private static bool IsKeyDown(uint virtualKey)
-        {
-            return (GetAsyncKeyState((int)virtualKey) & 0x8000) != 0;
-        }
-
         public void Dispose()
         {
             if (_hookHandle == IntPtr.Zero)
@@ -221,9 +234,6 @@ namespace Flow.Launcher.Plugin.WinHotkey
             int code,
             IntPtr message,
             IntPtr data);
-
-        [DllImport("user32.dll")]
-        private static extern short GetAsyncKeyState(int virtualKey);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string moduleName);
